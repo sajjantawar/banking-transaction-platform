@@ -20,7 +20,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Verify backend
-        run: ./mvnw -B clean verify
+        run: mvn -B clean verify
 
   frontend:
     runs-on: ubuntu-latest

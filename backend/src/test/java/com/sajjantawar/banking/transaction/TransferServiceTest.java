@@ -1,47 +1,7 @@
 package com.sajjantawar.banking.transaction;
-
-import com.sajjantawar.banking.account.Account;
-import com.sajjantawar.banking.account.AccountRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-class TransferServiceTest {
-
-    @Mock AccountRepository accountRepository;
-    @Mock TransactionRepository transactionRepository;
-    @Mock TransactionEventPublisher eventPublisher;
-    @InjectMocks TransferService service;
-
-    @Test
-    void shouldTransferMoneyAndPublishEvent() {
-        Account source = new Account(UUID.randomUUID(), "ACC100001", "One",
-                new BigDecimal("100.00"), com.sajjantawar.banking.account.AccountStatus.ACTIVE);
-        Account destination = new Account(UUID.randomUUID(), "ACC100002", "Two",
-                new BigDecimal("50.00"), com.sajjantawar.banking.account.AccountStatus.ACTIVE);
-
-        when(transactionRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
-        when(accountRepository.findByAccountNumber("ACC100001")).thenReturn(Optional.of(source));
-        when(accountRepository.findByAccountNumber("ACC100002")).thenReturn(Optional.of(destination));
-        when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TransferResponse response = service.transfer(
-                new TransferRequest("ACC100001", "ACC100002", new BigDecimal("25.00"), "USD"), "key-1");
-
-        assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);
-        assertThat(source.getBalance()).isEqualByComparingTo("75.00");
-        assertThat(destination.getBalance()).isEqualByComparingTo("75.00");
-        verify(eventPublisher).publish(any(TransactionEvent.class));
-    }
+import com.fasterxml.jackson.databind.ObjectMapper; import com.sajjantawar.banking.account.*; import com.sajjantawar.banking.outbox.*; import org.junit.jupiter.api.*; import org.mockito.*; import java.math.BigDecimal; import java.util.*; import static org.assertj.core.api.Assertions.*; import static org.mockito.ArgumentMatchers.any; import static org.mockito.Mockito.*;
+@ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class) class TransferServiceTest {
+ @Mock AccountRepository accounts; @Mock TransactionRepository transactions; @Mock OutboxRepository outbox; @Mock ObjectMapper mapper; @InjectMocks TransferService service;
+ @Test void shouldTransferUsingDeterministicLocksAndOutbox(){Account source=new Account(UUID.randomUUID(),"ACC100001","One","demo",new BigDecimal("100.00"),AccountStatus.ACTIVE);Account destination=new Account(UUID.randomUUID(),"ACC100002","Two","demo",new BigDecimal("50.00"),AccountStatus.ACTIVE);when(transactions.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());when(accounts.findByAccountNumberForUpdate("ACC100001")).thenReturn(Optional.of(source));when(accounts.findByAccountNumberForUpdate("ACC100002")).thenReturn(Optional.of(destination));when(transactions.save(any())).thenAnswer(i->i.getArgument(0));when(mapper.writeValueAsString(any())).thenReturn("{}");var response=service.transfer(new TransferRequest("ACC100001","ACC100002",new BigDecimal("25.00"),"USD"),"key-1","demo");assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);assertThat(source.getBalance()).isEqualByComparingTo("75.00");assertThat(destination.getBalance()).isEqualByComparingTo("75.00");verify(outbox).save(any(OutboxEvent.class));}
+ @Test void shouldRejectNonOwner(){Account source=new Account(UUID.randomUUID(),"ACC100001","One","demo",new BigDecimal("100.00"),AccountStatus.ACTIVE);when(transactions.findByIdempotencyKey("key-2")).thenReturn(Optional.empty());when(accounts.findByAccountNumberForUpdate("ACC100001")).thenReturn(Optional.of(source));when(accounts.findByAccountNumberForUpdate("ACC100002")).thenReturn(Optional.of(new Account(UUID.randomUUID(),"ACC100002","Two","other",new BigDecimal("50.00"),AccountStatus.ACTIVE)));assertThatThrownBy(()->service.transfer(new TransferRequest("ACC100001","ACC100002",BigDecimal.TEN,"USD"),"key-2","other")).isInstanceOf(SecurityException.class);}
 }

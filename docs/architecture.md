@@ -1,38 +1,34 @@
 # Architecture
 
-## Context
+## Request path
 
-The platform models a controlled banking transfer flow. A transfer must either move the complete amount between two accounts or make no balance change.
+1. Angular authenticates through `POST /api/v1/auth/login`.
+2. Spring Security validates credentials and returns a signed JWT.
+3. Subsequent REST requests carry the JWT as a Bearer token.
+4. Account APIs apply RBAC and ownership filtering.
+5. Transfer API validates input and requires an Idempotency-Key.
+6. Transfer service locks both account rows in deterministic order.
+7. Account debit/credit, transaction record, and outbox event commit in one database transaction.
+8. Outbox publisher emits the event to Kafka.
+9. Kafka consumers use the inbox table to deduplicate repeated deliveries.
 
-## Request flow
+## Consistency model
 
-```
-Angular UI
-   |
-   v
-REST Controller
-   |
-   v
-Transfer Service (@Transactional)
-   |                |
-   v                v
-Account Repository  Transaction Repository
-   |                |
-   v                v
-PostgreSQL       transaction_records
-```
+The database is the system of record for balances. Kafka is an asynchronous integration channel. The transactional outbox prevents a successful database transfer from losing its corresponding event because of a process/network failure between database commit and Kafka publication.
 
-## Consistency
+Kafka delivery remains at-least-once. Consumer-side inbox processing makes the logical side effect idempotent.
 
-- A database transaction wraps balance changes and transaction record creation.
-- Account balances use optimistic locking via JPA `@Version`.
-- The API requires an `Idempotency-Key`.
-- PostgreSQL enforces uniqueness of the idempotency key.
+## Concurrency
 
-## Planned evolution
+Account rows are locked with PostgreSQL row-level pessimistic locks. Every two-account transfer acquires locks in lexicographic account-number order, reducing circular-wait deadlock scenarios.
 
-- Publish transaction events through Kafka using an outbox pattern.
-- Replace the local development security baseline with JWT/OIDC.
-- Add Testcontainers integration tests.
-- Add Angular authentication, transfer workflow and transaction history.
-- Add custody-specific workflows and operational dashboards.
+## Security model
+
+JWTs are stateless. Roles are CUSTOMER, OPERATIONS, and ADMIN. Customer account queries are restricted to the authenticated username. Transfer source ownership is checked inside the transactional service rather than trusting a client-supplied owner.
+
+## Testing strategy
+
+- Unit tests: domain/service behavior and authorization decisions.
+- Repository integration tests: PostgreSQL + Flyway through Testcontainers.
+- E2E tests: Playwright browser login and transfer smoke paths.
+- CI: backend verification, Angular build, and Chromium E2E tests.

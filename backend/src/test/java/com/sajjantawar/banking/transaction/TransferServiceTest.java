@@ -14,17 +14,18 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TransferServiceTest {
 
     @Mock AccountRepository accountRepository;
     @Mock TransactionRepository transactionRepository;
+    @Mock TransactionEventPublisher eventPublisher;
     @InjectMocks TransferService service;
 
     @Test
-    void shouldTransferMoneyAndPersistTransaction() {
+    void shouldTransferMoneyAndPublishEvent() {
         Account source = new Account(UUID.randomUUID(), "ACC100001", "One",
                 new BigDecimal("100.00"), com.sajjantawar.banking.account.AccountStatus.ACTIVE);
         Account destination = new Account(UUID.randomUUID(), "ACC100002", "Two",
@@ -36,11 +37,11 @@ class TransferServiceTest {
         when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         TransferResponse response = service.transfer(
-                new TransferRequest("ACC100001", "ACC100002", new BigDecimal("25.00"), "USD"),
-                "key-1");
+                new TransferRequest("ACC100001", "ACC100002", new BigDecimal("25.00"), "USD"), "key-1");
 
         assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);
         assertThat(source.getBalance()).isEqualByComparingTo("75.00");
         assertThat(destination.getBalance()).isEqualByComparingTo("75.00");
+        verify(eventPublisher).publish(any(TransactionEvent.class));
     }
 }

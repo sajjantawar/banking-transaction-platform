@@ -1,26 +1,22 @@
 package com.sajjantawar.banking.transaction;
-import com.fasterxml.jackson.core.JsonProcessingException; import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sajjantawar.banking.account.*; import com.sajjantawar.banking.outbox.*; import jakarta.persistence.EntityNotFoundException;
-import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
-import java.time.Instant; import java.util.UUID;
+import com.fasterxml.jackson.core.JsonProcessingException; import com.fasterxml.jackson.databind.ObjectMapper; import com.sajjantawar.banking.account.*; import com.sajjantawar.banking.outbox.*; import jakarta.persistence.EntityNotFoundException; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import java.time.Instant; import java.util.UUID;
 @Service public class TransferService {
  private final AccountRepository accounts; private final TransactionRepository transactions; private final OutboxRepository outbox; private final ObjectMapper mapper;
  public TransferService(AccountRepository accounts,TransactionRepository transactions,OutboxRepository outbox,ObjectMapper mapper){this.accounts=accounts;this.transactions=transactions;this.outbox=outbox;this.mapper=mapper;}
- @Transactional public TransferResponse transfer(TransferRequest request,String key){
+ @Transactional public TransferResponse transfer(TransferRequest request,String key,String username){
   if(key==null||key.isBlank()||key.length()>100)throw new IllegalArgumentException("A valid Idempotency-Key is required");
-  return transactions.findByIdempotencyKey(key).map(this::toResponse).orElseGet(()->execute(request,key));
+  return transactions.findByIdempotencyKey(key).map(this::toResponse).orElseGet(()->execute(request,key,username));
  }
- private TransferResponse execute(TransferRequest request,String key){
+ private TransferResponse execute(TransferRequest request,String key,String username){
   if(request.amount()==null||request.amount().signum()<=0)throw new IllegalArgumentException("Amount must be positive");
   if(request.sourceAccount().equals(request.destinationAccount()))throw new IllegalArgumentException("Source and destination accounts must differ");
+  if(!request.currency().equalsIgnoreCase("USD"))throw new IllegalArgumentException("Only USD transfers are currently supported");
   String first=request.sourceAccount().compareTo(request.destinationAccount())<0?request.sourceAccount():request.destinationAccount();
   String second=first.equals(request.sourceAccount())?request.destinationAccount():request.sourceAccount();
   Account a=accounts.findByAccountNumberForUpdate(first).orElseThrow(()->new EntityNotFoundException("Account not found: "+first));
   Account b=accounts.findByAccountNumberForUpdate(second).orElseThrow(()->new EntityNotFoundException("Account not found: "+second));
-  Account source=request.sourceAccount().equals(a.getAccountNumber())?a:b;
-  Account destination=request.destinationAccount().equals(a.getAccountNumber())?a:b;
-  if(!source.getOwnerUsername().equals(request.requestedBy())&&!request.requestedBy().equals("system"))throw new SecurityException("Source account is not owned by authenticated user");
-  if(!request.currency().equalsIgnoreCase("USD"))throw new IllegalArgumentException("Only USD transfers are currently supported");
+  Account source=request.sourceAccount().equals(a.getAccountNumber())?a:b; Account destination=request.destinationAccount().equals(a.getAccountNumber())?a:b;
+  if(!source.getOwnerUsername().equals(username))throw new SecurityException("Source account is not owned by authenticated user");
   source.debit(request.amount()); destination.credit(request.amount());
   TransactionRecord saved=transactions.save(new TransactionRecord(UUID.randomUUID(),source.getAccountNumber(),destination.getAccountNumber(),request.amount(),request.currency().toUpperCase(),key,TransactionStatus.COMPLETED));
   TransactionEvent event=new TransactionEvent(saved.getId(),saved.getSourceAccount(),saved.getDestinationAccount(),saved.getAmount(),saved.getCurrency(),saved.getStatus(),Instant.now());

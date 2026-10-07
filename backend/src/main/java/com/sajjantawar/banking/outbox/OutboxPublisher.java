@@ -10,6 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class OutboxPublisher {
  private final OutboxRepository repository; private final KafkaTemplate<String,TransactionEvent> kafkaTemplate; private final ObjectMapper objectMapper;
  public OutboxPublisher(OutboxRepository repository,KafkaTemplate<String,TransactionEvent> kafkaTemplate,ObjectMapper objectMapper){this.repository=repository;this.kafkaTemplate=kafkaTemplate;this.objectMapper=objectMapper;}
- @Scheduled(fixedDelay=2000) @Transactional
- public void publishPending(){for(OutboxEvent event:repository.findTop100ByPublishedFalseOrderByCreatedAtAsc()){try{TransactionEvent payload=objectMapper.readValue(event.getPayload(),TransactionEvent.class);kafkaTemplate.send(KafkaTransactionEventPublisher.TOPIC,event.getAggregateId().toString(),payload).get();event.markPublished();repository.save(event);}catch(Exception ignored){}}}
+ @Scheduled(fixedDelay=2000)
+ @Transactional
+ public void publishPending(){
+  for(OutboxEvent event:repository.findTop100ByPublishedFalseOrderByCreatedAtAsc()){
+   try{
+    TransactionEvent payload=objectMapper.readValue(event.getPayload(),TransactionEvent.class);
+    kafkaTemplate.send(KafkaTransactionEventPublisher.TOPIC,event.getAggregateId().toString(),payload).get();
+    event.markPublished();
+    repository.save(event);
+   }catch(Exception ignored){ }
+  }
+ }
 }

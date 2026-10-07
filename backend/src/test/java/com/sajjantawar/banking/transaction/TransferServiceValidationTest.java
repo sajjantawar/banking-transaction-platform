@@ -3,6 +3,7 @@ package com.sajjantawar.banking.transaction;
 import com.sajjantawar.banking.account.Account;
 import com.sajjantawar.banking.account.AccountRepository;
 import com.sajjantawar.banking.account.AccountStatus;
+import com.sajjantawar.banking.outbox.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

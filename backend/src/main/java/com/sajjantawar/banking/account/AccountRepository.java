@@ -1,10 +1,11 @@
 package com.sajjantawar.banking.account;
-
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.Optional;
-import java.util.UUID;
-
-public interface AccountRepository extends JpaRepository<Account, UUID> {
-    Optional<Account> findByAccountNumber(String accountNumber);
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+import java.util.*;
+public interface AccountRepository extends JpaRepository<Account,UUID>{
+ Optional<Account> findByAccountNumber(String accountNumber);
+ @Lock(LockModeType.PESSIMISTIC_WRITE)
+ @Query("select a from Account a where a.accountNumber = :accountNumber")
+ Optional<Account> findByAccountNumberForUpdate(@Param("accountNumber") String accountNumber);
 }

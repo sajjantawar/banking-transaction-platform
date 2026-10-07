@@ -5,8 +5,30 @@
     "banking-transaction-platform-ui":{
       "projectType":"application","root":"","sourceRoot":"src","prefix":"app",
       "architect":{
-        "build":{"builder":"@angular-devkit/build-angular:application","options":{"browser":"src/main.ts","index":"src/index.html","tsConfig":"tsconfig.app.json"}},
-        "serve":{"builder":"@angular-devkit/build-angular:dev-server","configurations":{"production":{"buildTarget":"banking-transaction-platform-ui:build:production"},"development":{"buildTarget":"banking-transaction-platform-ui:build:development"}},"options":{"proxyConfig":"proxy.conf.json"},"defaultConfiguration":"development"}
+        "build":{
+          "builder":"@angular-devkit/build-angular:application",
+          "options":{
+            "outputPath":"dist/banking-transaction-platform-ui",
+            "browser":"src/main.ts",
+            "index":"src/index.html",
+            "polyfills":["zone.js"],
+            "tsConfig":"tsconfig.app.json"
+          },
+          "configurations":{
+            "production":{"optimization":true,"sourceMap":false},
+            "development":{"optimization":false,"sourceMap":true}
+          },
+          "defaultConfiguration":"production"
+        },
+        "serve":{
+          "builder":"@angular-devkit/build-angular:dev-server",
+          "configurations":{
+            "production":{"buildTarget":"banking-transaction-platform-ui:build:production"},
+            "development":{"buildTarget":"banking-transaction-platform-ui:build:development"}
+          },
+          "options":{"proxyConfig":"proxy.conf.json"},
+          "defaultConfiguration":"development"
+        }
       }
     }
   }

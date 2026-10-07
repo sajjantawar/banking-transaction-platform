@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class KafkaTransactionEventPublisher implements TransactionEventPublisher {
 
-    static final String TOPIC = "banking.transactions.v1";
+    public static final String TOPIC = "banking.transactions.v1";
 
     private final KafkaTemplate<String, TransactionEvent> kafkaTemplate;
 
